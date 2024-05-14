@@ -9,9 +9,10 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 
 #![cfg(test)]
 
-use crate::{mock::*, Event};
+use crate::{mock::*, Event, NegativeImbalanceOf};
 use frame_support::{assert_noop, assert_ok, error::BadOrigin};
 use sp_runtime::traits::{AccountIdConversion, Hash};
+use frame_support::traits::OnUnbalanced;
 
 #[test]
 fn execute_deposits_event() {
@@ -63,5 +64,18 @@ fn execute_works() {
 
 		assert_ok!(CustomAccount::execute(RuntimeOrigin::root(), call));
 		System::assert_has_event(frame_system::Event::<Test>::Remarked { sender, hash }.into());
+	});
+}
+
+#[test]
+fn execute_unbalanced() {
+	new_test_ext().execute_with(|| {
+		let amount = NegativeImbalanceOf::<Test, ()>::new(100u64);
+		let call_account_id = <Test as crate::Config>::PalletId::get().into_account_truncating();
+		let balance_before = Balances::free_balance(call_account_id);
+		CustomAccount::on_unbalanced(amount);
+		let balance_after = Balances::free_balance(call_account_id);
+		assert_eq!(balance_before, balance_after - 100);
+		// System::assert_last_event(Event::<Test>::Deposit { result: Ok(()) }.into());
 	});
 }

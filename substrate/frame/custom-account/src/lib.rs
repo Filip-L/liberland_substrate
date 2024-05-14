@@ -30,6 +30,7 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 */
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![recursion_limit = "1024"]
 
 pub use pallet::*;
 
@@ -40,6 +41,15 @@ pub mod weights;
 use weights::WeightInfo;
 
 use codec::MaxEncodedLen;
+use frame_support::traits::Currency;
+use frame_support::traits::Imbalance;
+
+type NegativeImbalanceOf<T, I> = <<T as Config<I>>::Currency as Currency<
+	<T as frame_system::Config>::AccountId,
+>>::NegativeImbalance;
+
+pub type BalanceOf<T, I = ()> =
+	<<T as Config<I>>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -47,7 +57,7 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::GetDispatchInfo,
 		pallet_prelude::{DispatchResult, *},
-		traits::{Contains, OriginTrait},
+		traits::{Contains, OriginTrait, OnUnbalanced},
 		PalletId,
 	};
 	use frame_system::{pallet_prelude::*, RawOrigin};
@@ -90,6 +100,8 @@ pub mod pallet {
 
 		/// WeightInfo
 		type WeightInfo: WeightInfo;
+
+		type Currency: Currency<Self::AccountId>;
 	}
 
 	#[pallet::event]
@@ -97,6 +109,7 @@ pub mod pallet {
 	pub enum Event<T: Config<I>, I: 'static = ()> {
 		/// Call executed
 		CallExecuted { result: DispatchResult },
+		Deposit { value: BalanceOf<T, I> }
 	}
 
 	#[pallet::call]
@@ -135,6 +148,16 @@ pub mod pallet {
 			let res = call.dispatch(origin).map(|_| ()).map_err(|e| e.error);
 			Self::deposit_event(Event::CallExecuted { result: res });
 			res
+		}
+	}
+
+	impl<T: Config<I>, I: 'static> OnUnbalanced<NegativeImbalanceOf<T, I>> for Pallet<T, I> {
+		fn on_nonzero_unbalanced(amount: NegativeImbalanceOf<T, I>) {
+			let numeric_amount = amount.peek();
+			let call_account_id = T::PalletId::get().into_account_truncating();
+			// Must resolve into existing but better to be safe.
+			let _ = T::Currency::resolve_creating(&call_account_id, amount);
+			Self::deposit_event(Event::Deposit { value: numeric_amount });
 		}
 	}
 }
