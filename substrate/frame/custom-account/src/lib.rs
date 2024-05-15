@@ -30,7 +30,6 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 */
 
 #![cfg_attr(not(feature = "std"), no_std)]
-#![recursion_limit = "1024"]
 
 pub use pallet::*;
 

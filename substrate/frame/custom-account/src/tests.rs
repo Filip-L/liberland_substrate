@@ -13,6 +13,7 @@ use crate::{mock::*, Event, NegativeImbalanceOf};
 use frame_support::{assert_noop, assert_ok, error::BadOrigin};
 use sp_runtime::traits::{AccountIdConversion, Hash};
 use frame_support::traits::OnUnbalanced;
+use frame_support::traits::Imbalance;
 
 #[test]
 fn execute_deposits_event() {
@@ -70,12 +71,13 @@ fn execute_works() {
 #[test]
 fn execute_unbalanced() {
 	new_test_ext().execute_with(|| {
-		let amount = NegativeImbalanceOf::<Test, ()>::new(100u64);
-		let call_account_id = <Test as crate::Config>::PalletId::get().into_account_truncating();
+		let imbalance = NegativeImbalanceOf::<Test, ()>::new(100u64);
+		let amount = imbalance.peek();
+		let call_account_id: u64 = CustomAccountPalletId::get().into_account_truncating();
 		let balance_before = Balances::free_balance(call_account_id);
-		CustomAccount::on_unbalanced(amount);
+		CustomAccount::on_unbalanced(imbalance);
 		let balance_after = Balances::free_balance(call_account_id);
 		assert_eq!(balance_before, balance_after - 100);
-		// System::assert_last_event(Event::<Test>::Deposit { result: Ok(()) }.into());
+		System::assert_last_event(Event::<Test>::Deposit { value: amount }.into());
 	});
 }
